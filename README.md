@@ -21,6 +21,9 @@ Note: `./goservegen ~/Downloads/example github.com/yourusername/example` will ge
 
 5. Have fun developing your REST API server!
 
+## Working on the project
+You can read about using this framework here [github.com/unusualcodeorg/goserve](https://github.com/unusualcodeorg/goserve)
+
 ## Troubleshoot
 Sometimes your operating system will block the binary from execution, you will have to provide permission to run it. 
 
