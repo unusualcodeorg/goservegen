@@ -43,6 +43,7 @@ func main() {
 	generateApi(module, dir, "sample")
 	generateStartup(module, dir, "sample")
 	generateCmd(module, dir)
+	generateDocker(dir)
 	executeTidy(dir)
 }
 
@@ -66,6 +67,137 @@ func executeTidy(dir string) {
 	if err != nil {
 		log.Fatalf("Command execution failed: %v\nOutput: %s", err, string(output))
 	}
+}
+
+func generateDocker(dir string) {
+	base := filepath.Base(dir)
+	docker := fmt.Sprintf(`FROM golang:1.22.4
+
+RUN adduser --disabled-password --gecos '' gouser
+
+RUN mkdir -p /home/gouser/%s
+
+WORKDIR /home/gouser/%s
+
+COPY . .
+
+RUN chown -R gouser:gouser /home/gouser/%s
+
+USER gouser
+
+RUN go mod tidy
+RUN go build -o build/server cmd/main.go
+
+EXPOSE 8080
+
+CMD ["./build/server"]
+ `, base, base, base)
+
+	compose := `services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: api
+    container_name: api
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - '${SERVER_PORT}:8080'
+    depends_on:
+      - mongo
+      - redis
+
+  mongo:
+    image: mongo:7.0.9
+    container_name: mongo
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=${DB_ADMIN}
+      - MONGO_INITDB_ROOT_PASSWORD=${DB_ADMIN_PWD}
+      - MONGO_INITDB_DATABASE=${DB_NAME}
+    ports:
+      - '${DB_PORT}:27017'
+    command: mongod --bind_ip_all
+    volumes:
+      - dbdata:/data/db
+
+  redis:
+    image: redis:7.2.3
+    container_name: redis
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - '${REDIS_PORT}:6379'
+    command: redis-server --bind localhost --bind 0.0.0.0 --save 20 1 --loglevel warning --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - cache:/data/cache
+
+volumes:
+  dbdata:
+  cache:
+    driver: local
+`
+
+	ignore := `
+# Binaries
+/server
+/server.exe
+
+# Vendor directory (if not using Go modules)
+vendor/
+
+# OS-specific files
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test output
+*.out
+
+# Logs
+*.log
+
+# Coverage files
+*.cover
+*.coverage
+*.cov
+
+# Build directories
+bin/
+obj/
+build/
+dist/
+
+# IDE/editor directories and files
+.vscode/
+.idea/
+*.swp
+*~
+
+# Git
+.git/
+.gitignore
+
+# Docker
+.dockerignore
+Dockerfile
+
+# Dependency management files
+go.sum
+
+# Any other files you want to exclude
+.DS_Store 
+.github/
+.tools/
+logs/
+*.md
+`
+	createFile(filepath.Join(dir, "Dockerfile"), docker)
+	createFile(filepath.Join(dir, "docker-compose.yml"), compose)
+	createFile(filepath.Join(dir, ".dockerignore"), ignore)
 }
 
 func generateCmd(module, dir string) {
