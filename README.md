@@ -15,7 +15,7 @@ cd ~/Downloads/goservegen_Darwin_arm64
 # ./goservegen [project directory path] [project module]
 ./goservegen ~/Downloads/example github.com/yourusername/example
 ```
-Note: ***./goservegen ~/Downloads/example github.com/yourusername/example** will generate project named `example` located at `~/Downloads` and module `github.com/yourusername/example`
+> Note: `./goservegen ~/Downloads/example github.com/yourusername/example` will generate project named `example` located at `~/Downloads` and module `github.com/yourusername/example`
 
 4. Open the generated project in your IDE/editor of choice
 
@@ -65,4 +65,4 @@ You can read about using this framework here [github.com/unusualcodeorg/goserve]
 ## Troubleshoot
 Sometimes your operating system will block the binary from execution, you will have to provide permission to run it. 
 
-In Mac you have to go System Settings > Privacy & Security > Allow goservegen
+> In Mac you have to go System Settings > Privacy & Security > Allow goservegen
