@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 )
@@ -29,19 +30,20 @@ func main() {
 		log.Fatalln("project name should be non-empty string")
 	}
 
-	project := os.Args[1]
+	dir := os.Args[1]
 	module := os.Args[2]
 
-	createDir(project)
-	generateGoMod(module, project)
-	generateEnvs(project)
-	generateIgnores(project)
-	generateUtils(project)
-	generateConfig(project)
-	generateRSAKeyPair(project)
-	generateApi(module, project, "sample")
-	generateStartup(module, project, "sample")
-	generateCmd(module, project)
+	createDir(dir)
+	generateGoMod(module, dir)
+	generateEnvs(dir)
+	generateIgnores(dir)
+	generateUtils(dir)
+	generateConfig(dir)
+	generateRSAKeyPair(dir)
+	generateApi(module, dir, "sample")
+	generateStartup(module, dir, "sample")
+	generateCmd(module, dir)
+	executeTidy(dir)
 }
 
 func createDir(dir string) {
@@ -53,6 +55,16 @@ func createDir(dir string) {
 func createFile(file, content string) {
 	if err := os.WriteFile(file, []byte(content), os.ModePerm); err != nil {
 		log.Fatalf("error creating file: %s", file)
+	}
+}
+
+func executeTidy(dir string) {
+	cmd := exec.Command("go", "mod", "tidy")
+	cmd.Dir = dir
+
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		log.Fatalf("Command execution failed: %v\nOutput: %s", err, string(output))
 	}
 }
 
