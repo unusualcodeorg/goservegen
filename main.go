@@ -43,6 +43,7 @@ func main() {
 	generateApi(module, dir, "sample")
 	generateStartup(module, dir, "sample")
 	generateCmd(module, dir)
+	generateMongoInit(dir)
 	generateDocker(dir)
 	executeTidy(dir)
 }
@@ -67,6 +68,25 @@ func executeTidy(dir string) {
 	if err != nil {
 		log.Fatalf("Command execution failed: %v\nOutput: %s", err, string(output))
 	}
+}
+
+func generateMongoInit(dir string) {
+	d := filepath.Join(dir, ".extra", "setup")
+	createDir(d)
+
+	initMongo := `function seed(dbName, user, password) {
+  db = db.getSiblingDB(dbName);
+  db.createUser({
+    user: user,
+    pwd: password,
+    roles: [{ role: "readWrite", db: dbName }],
+  });
+}
+
+seed("dev-db", "dev-db-user", "changeit");
+seed("test-db", "test-db-user", "changeit");
+`
+	createFile(filepath.Join(d, "init-mongo.js"), initMongo)
 }
 
 func generateDocker(dir string) {
@@ -121,6 +141,7 @@ CMD ["./build/server"]
       - '${DB_PORT}:27017'
     command: mongod --bind_ip_all
     volumes:
+      - ./.extra/setup/init-mongo.js:/docker-entrypoint-initdb.d/init-mongo.js:ro
       - dbdata:/data/db
 
   redis:
@@ -861,10 +882,11 @@ GO_MODE=debug
 SERVER_HOST=0.0.0.0
 SERVER_PORT=8080
 
-DB_HOST=localhost
+DB_HOST=mongo
+# DB_HOST=localhost
 DB_PORT=27017
-DB_NAME=goserver-dev-db
-DB_USER=goserver-dev-db-user
+DB_NAME=dev-db
+DB_USER=dev-db-user
 DB_USER_PWD=changeit
 DB_MIN_POOL_SIZE=2
 DB_MAX_POOL_SIZE=5
@@ -872,7 +894,8 @@ DB_QUERY_TIMEOUT_SEC=60
 DB_ADMIN=admin
 DB_ADMIN_PWD=changeit
 
-REDIS_HOST=localhost
+REDIS_HOST=redis
+# REDIS_HOST=localhost
 REDIS_PORT=6379
 REDIS_PASSWORD=changeit
 
@@ -894,10 +917,11 @@ GO_MODE=test
 SERVER_HOST=0.0.0.0
 SERVER_PORT=8080
 
-DB_HOST=localhost
+DB_HOST=mongo
+# DB_HOST=localhost
 DB_PORT=27017
-DB_NAME=goserver-test-db
-DB_USER=goserver-test-db-user
+DB_NAME=test-db
+DB_USER=test-db-user
 DB_USER_PWD=changeit
 DB_MIN_POOL_SIZE=2
 DB_MAX_POOL_SIZE=5
@@ -905,7 +929,8 @@ DB_QUERY_TIMEOUT_SEC=60
 DB_ADMIN=admin
 DB_ADMIN_PWD=changeit
 
-REDIS_HOST=localhost
+REDIS_HOST=redis
+# REDIS_HOST=localhost
 REDIS_PORT=6379
 REDIS_PASSWORD=changeit
 
