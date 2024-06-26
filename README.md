@@ -59,6 +59,23 @@ cd ~/Downloads/goservegen_Darwin_arm64
 └── go.sum
 ```
 
+## Run the project using Docker
+```bash
+docker-compose up --build
+```
+#### Check the API
+```cURL
+curl --location 'http://localhost:8080/sample/ping'
+```
+Response
+```
+{
+    "code": "10000",
+    "status": 200,
+    "message": "pong!"
+}
+```
+
 ## Working on the project
 You can read about using this framework here [github.com/unusualcodeorg/goserve](https://github.com/unusualcodeorg/goserve)
 
