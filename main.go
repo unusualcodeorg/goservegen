@@ -9,6 +9,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 func main() {
@@ -31,14 +32,16 @@ func main() {
 	project := os.Args[1]
 	module := os.Args[2]
 
-	dir := filepath.Join(project, "")
-	createDir(dir)
-	generateGoMod(dir, module)
-	generateEnvs(dir)
-	generateIgnores(dir)
-	generateUtils(dir)
-	generateConfig(dir)
-	generateRSAKeyPair(dir)
+	createDir(project)
+	generateGoMod(module, project)
+	generateEnvs(project)
+	generateIgnores(project)
+	generateUtils(project)
+	generateConfig(project)
+	generateRSAKeyPair(project)
+	generateApi(module, project, "sample")
+	generateStartup(module, project, "sample")
+	generateCmd(module, project)
 }
 
 func createDir(dir string) {
@@ -51,6 +54,478 @@ func createFile(file, content string) {
 	if err := os.WriteFile(file, []byte(content), os.ModePerm); err != nil {
 		log.Fatalf("error creating file: %s", file)
 	}
+}
+
+func generateCmd(module, dir string) {
+	d := filepath.Join(dir, "cmd")
+	createDir(d)
+
+	m := fmt.Sprintf(`package main
+
+import "%s/startup"
+
+func main() {
+	startup.Server()
+}
+`, module)
+
+	createFile(filepath.Join(d, "main.go"), m)
+}
+
+func generateStartup(module, dir, feature string) {
+	d := filepath.Join(dir, "startup")
+	createDir(d)
+
+	indexes := fmt.Sprintf(`package startup
+
+import (
+	"github.com/unusualcodeorg/goserve/arch/mongo"
+	%sModel "%s/api/sample/model"
+)
+
+func EnsureDbIndexes(db mongo.Database) {
+	go mongo.Document[sampleModel.Sample](&sampleModel.Sample{}).EnsureIndexes(db)
+}
+`, feature, module)
+
+	mdl := fmt.Sprintf(`package startup
+
+import (
+	"context"
+
+	coreMW "github.com/unusualcodeorg/goserve/arch/middleware"
+	"github.com/unusualcodeorg/goserve/arch/mongo"
+	"github.com/unusualcodeorg/goserve/arch/network"
+	"github.com/unusualcodeorg/goserve/arch/redis"
+	"%s/api/sample"
+	"%s/config"
+)
+
+type Module network.Module[module]
+
+type module struct {
+	Context context.Context
+	Env     *config.Env
+	DB      mongo.Database
+	Store   redis.Store
+}
+
+func (m *module) GetInstance() *module {
+	return m
+}
+
+func (m *module) Controllers() []network.Controller {
+	return []network.Controller{
+		sample.NewController(m.AuthenticationProvider(), m.AuthorizationProvider(), sample.NewService(m.DB, m.Store)),
+	}
+}
+
+func (m *module) RootMiddlewares() []network.RootMiddleware {
+	return []network.RootMiddleware{
+		coreMW.NewErrorCatcher(),
+		coreMW.NewNotFound(),
+	}
+}
+
+func (m *module) AuthenticationProvider() network.AuthenticationProvider {
+	// TODO
+	return nil
+}
+
+func (m *module) AuthorizationProvider() network.AuthorizationProvider {
+	// TODO
+	return nil
+}
+
+func NewModule(context context.Context, env *config.Env, db mongo.Database, store redis.Store) Module {
+	return &module{
+		Context: context,
+		Env:     env,
+		DB:      db,
+		Store:   store,
+	}
+}
+`, module, module)
+
+	server := fmt.Sprintf(`package startup
+
+import (
+	"context"
+	"time"
+
+	"github.com/gin-gonic/gin"
+	"github.com/unusualcodeorg/goserve/arch/mongo"
+	"github.com/unusualcodeorg/goserve/arch/network"
+	"github.com/unusualcodeorg/goserve/arch/redis"
+	"%s/config"
+)
+
+type Shutdown = func()
+
+func Server() {
+	env := config.NewEnv(".env")
+	router, _, shutdown := create(env)
+	defer shutdown()
+	router.Start(env.ServerHost, env.ServerPort)
+}
+
+func create(env *config.Env) (network.Router, Module, Shutdown) {
+	context := context.Background()
+
+	dbConfig := mongo.DbConfig{
+		User:        env.DBUser,
+		Pwd:         env.DBUserPwd,
+		Host:        env.DBHost,
+		Port:        env.DBPort,
+		Name:        env.DBName,
+		MinPoolSize: env.DBMinPoolSize,
+		MaxPoolSize: env.DBMaxPoolSize,
+		Timeout:     time.Duration(env.DBQueryTimeout) * time.Second,
+	}
+
+	db := mongo.NewDatabase(context, dbConfig)
+	db.Connect()
+
+	if env.GoMode != gin.TestMode {
+		EnsureDbIndexes(db)
+	}
+
+	redisConfig := redis.Config{
+		Host: env.RedisHost,
+		Port: env.RedisPort,
+		Pwd:  env.RedisPwd,
+		DB:   env.RedisDB,
+	}
+
+	store := redis.NewStore(context, &redisConfig)
+	store.Connect()
+
+	module := NewModule(context, env, db, store)
+
+	router := network.NewRouter(env.GoMode)
+	router.RegisterValidationParsers(network.CustomTagNameFunc())
+	router.LoadRootMiddlewares(module.RootMiddlewares())
+	router.LoadControllers(module.Controllers())
+
+	shutdown := func() {
+		db.Disconnect()
+		store.Disconnect()
+	}
+
+	return router, module, shutdown
+}
+`, module)
+
+	testServer := fmt.Sprintf(`package startup
+
+import (
+	"net/http/httptest"
+
+	"github.com/unusualcodeorg/goserve/arch/network"
+	"%s/config"
+)
+
+type Teardown = func()
+
+func TestServer() (network.Router, Module, Teardown) {
+	env := config.NewEnv("../.test.env")
+	router, module, shutdown := create(env)
+	ts := httptest.NewServer(router.GetEngine())
+	teardown := func() {
+		ts.Close()
+		shutdown()
+	}
+	return router, module, teardown
+}
+`, module)
+
+	createFile(filepath.Join(d, "indexes.go"), indexes)
+	createFile(filepath.Join(d, "module.go"), mdl)
+	createFile(filepath.Join(d, "server.go"), server)
+	createFile(filepath.Join(d, "testserver.go"), testServer)
+}
+
+func generateApi(module, dir, feature string) {
+	d := filepath.Join(dir, "api")
+	createDir(d)
+	generateApiFeature(module, d, feature)
+}
+
+func capitalizeFirstLetter(str string) string {
+	if len(str) == 0 {
+		return str
+	}
+	return strings.ToUpper(string(str[0])) + str[1:]
+}
+
+func generateApiFeature(module, dir, feature string) error {
+	featureName := strings.ToLower(feature)
+	featureDir := filepath.Join(dir, featureName)
+
+	if err := os.MkdirAll(featureDir, os.ModePerm); err != nil {
+		return err
+	}
+
+	if err := generateDto(featureDir, featureName); err != nil {
+		return err
+	}
+	if err := generateModel(featureDir, featureName); err != nil {
+		return err
+	}
+	if err := generateService(module, featureDir, featureName); err != nil {
+		return err
+	}
+	if err := generateController(module, featureDir, featureName); err != nil {
+		return err
+	}
+	return nil
+}
+
+func generateDto(featureDir, featureName string) error {
+	dtoDirPath := filepath.Join(featureDir, "dto")
+	if err := os.MkdirAll(dtoDirPath, os.ModePerm); err != nil {
+		return err
+	}
+
+	featureLower := strings.ToLower(featureName)
+	featureCaps := capitalizeFirstLetter(featureName)
+	dtoPath := filepath.Join(featureDir, fmt.Sprintf("dto/create_%s.go", featureLower))
+
+	tStr := `package dto
+
+import (
+	"fmt"
+	"time"
+
+	"github.com/go-playground/validator/v10"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+)
+
+type Info%s struct {
+	ID        primitive.ObjectID ` + "`" + `json:"_id" binding:"required"` + "`" + `
+	Field     string             ` + "`" + `json:"field" binding:"required"` + "`" + `
+	CreatedAt time.Time          ` + "`" + `json:"createdAt" binding:"required"` + "`" + `
+}
+
+func EmptyInfo%s() *Info%s {
+	return &Info%s{}
+}
+
+func (d *Info%s) GetValue() *Info%s {
+	return d
+}
+
+func (d *Info%s) ValidateErrors(errs validator.ValidationErrors) ([]string, error) {
+	var msgs []string
+	for _, err := range errs {
+		switch err.Tag() {
+		case "required":
+			msgs = append(msgs, fmt.Sprintf("%%s is required", err.Field()))
+		case "min":
+			msgs = append(msgs, fmt.Sprintf("%%s must be min %%s", err.Field(), err.Param()))
+		case "max":
+			msgs = append(msgs, fmt.Sprintf("%%s must be max %%s", err.Field(), err.Param()))
+		default:
+			msgs = append(msgs, fmt.Sprintf("%%s is invalid", err.Field()))
+		}
+	}
+	return msgs, nil
+}
+`
+	template := fmt.Sprintf(tStr, featureCaps, featureCaps, featureCaps, featureCaps, featureCaps, featureCaps, featureCaps)
+
+	return os.WriteFile(dtoPath, []byte(template), os.ModePerm)
+}
+
+func generateModel(featureDir, featureName string) error {
+	modelDirPath := filepath.Join(featureDir, "model")
+	if err := os.MkdirAll(modelDirPath, os.ModePerm); err != nil {
+		return err
+	}
+
+	featureLower := strings.ToLower(featureName)
+	featureCaps := capitalizeFirstLetter(featureName)
+	modelPath := filepath.Join(featureDir, fmt.Sprintf("model/%s.go", featureLower))
+
+	tStr := `package model
+
+import (
+	"context"
+	"time"
+
+	"github.com/go-playground/validator/v10"
+	"github.com/unusualcodeorg/goserve/arch/mongo"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	mongod "go.mongodb.org/mongo-driver/mongo"
+)
+
+const CollectionName = "%ss"
+
+type %s struct {
+	ID        primitive.ObjectID ` + "`" + `bson:"_id,omitempty" validate:"-"` + "`" + `
+	Field     string             ` + "`" + `bson:"field" validate:"required"` + "`" + `
+	Status    bool               ` + "`" + `bson:"status" validate:"required"` + "`" + `
+	CreatedAt time.Time          ` + "`" + `bson:"createdAt" validate:"required"` + "`" + `
+	UpdatedAt time.Time          ` + "`" + `bson:"updatedAt" validate:"required"` + "`" + `
+}` + `
+
+func New%s(field string) (*%s, error) {
+	time := time.Now()
+	doc := %s{
+		Field:     field,
+		Status:    true,
+		CreatedAt: time,
+		UpdatedAt: time,
+	}
+	if err := doc.Validate(); err != nil {
+		return nil, err
+	}
+	return &doc, nil
+}
+
+func (doc *%s) GetValue() *%s {
+	return doc
+}
+
+func (doc *%s) Validate() error {
+	validate := validator.New()
+	return validate.Struct(doc)
+}
+
+func (*%s) EnsureIndexes(db mongo.Database) {
+	indexes := []mongod.IndexModel{
+		{
+			Keys: bson.D{
+				{Key: "_id", Value: 1},
+				{Key: "status", Value: 1},
+			},
+		},
+	}
+	
+	mongo.NewQueryBuilder[%s](db, CollectionName).Query(context.Background()).CreateIndexes(indexes)
+}
+
+`
+	template := fmt.Sprintf(tStr, featureLower, featureCaps, featureCaps, featureCaps, featureCaps, featureCaps, featureCaps, featureCaps, featureCaps, featureCaps)
+
+	return os.WriteFile(modelPath, []byte(template), os.ModePerm)
+}
+
+func generateService(module, featureDir, featureName string) error {
+	featureLower := strings.ToLower(featureName)
+	featureCaps := capitalizeFirstLetter(featureName)
+	servicePath := filepath.Join(featureDir, fmt.Sprintf("%sservice.go", ""))
+
+	template := fmt.Sprintf(`package %s
+
+import (
+  "%s/api/%s/dto"
+	"%s/api/%s/model"
+	"github.com/unusualcodeorg/goserve/arch/mongo"
+	"github.com/unusualcodeorg/goserve/arch/network"
+	"github.com/unusualcodeorg/goserve/arch/redis"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+)
+
+type Service interface {
+	Find%s(id primitive.ObjectID) (*model.%s, error)
+}
+
+type service struct {
+	network.BaseService
+	%sQueryBuilder mongo.QueryBuilder[model.%s]
+	info%sCache    redis.Cache[dto.Info%s]
+}
+
+func NewService(db mongo.Database, store redis.Store) Service {
+	return &service{
+		BaseService:  network.NewBaseService(),
+		%sQueryBuilder: mongo.NewQueryBuilder[model.%s](db, model.CollectionName),
+		info%sCache: redis.NewCache[dto.Info%s](store),
+	}
+}
+
+func (s *service) Find%s(id primitive.ObjectID) (*model.%s, error) {
+	filter := bson.M{"_id": id}
+
+	msg, err := s.%sQueryBuilder.SingleQuery().FindOne(filter, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return msg, nil
+}
+`, featureLower, module, featureLower, module, featureLower, featureCaps, featureCaps, featureLower, featureCaps, featureCaps, featureCaps, featureLower, featureCaps, featureCaps, featureCaps, featureCaps, featureCaps, featureLower)
+
+	return os.WriteFile(servicePath, []byte(template), os.ModePerm)
+}
+
+func generateController(module, featureDir, featureName string) error {
+	featureLower := strings.ToLower(featureName)
+	featureCaps := capitalizeFirstLetter(featureName)
+	controllerPath := filepath.Join(featureDir, fmt.Sprintf("%scontroller.go", ""))
+
+	template := fmt.Sprintf(`package %s
+
+import (
+	"github.com/gin-gonic/gin"
+	"%s/api/%s/dto"
+	coredto "github.com/unusualcodeorg/goserve/arch/dto"
+	"github.com/unusualcodeorg/goserve/arch/network"
+	"%s/utils"
+)
+
+type controller struct {
+	network.BaseController
+	service Service
+}
+
+func NewController(
+	authMFunc network.AuthenticationProvider,
+	authorizeMFunc network.AuthorizationProvider,
+	service Service,
+) network.Controller {
+	return &controller{
+		BaseController: network.NewBaseController("/%s", authMFunc, authorizeMFunc),
+		service:  service,
+	}
+}
+
+func (c *controller) MountRoutes(group *gin.RouterGroup) {
+group.GET("/ping", c.getPingHandler)
+	group.GET("/id/:id", c.get%sHandler)
+}
+
+func (c *controller) getPingHandler(ctx *gin.Context) {
+	c.Send(ctx).SuccessMsgResponse("pong!")
+}
+
+func (c *controller) get%sHandler(ctx *gin.Context) {
+	mongoId, err := network.ReqParams(ctx, coredto.EmptyMongoId())
+	if err != nil {
+		c.Send(ctx).BadRequestError(err.Error(), err)
+		return
+	}
+
+	%s, err := c.service.Find%s(mongoId.ID)
+	if err != nil {
+		c.Send(ctx).NotFoundError("%s not found", err)
+		return
+	}
+
+	data, err := utils.MapTo[dto.Info%s](%s)
+	if err != nil {
+		c.Send(ctx).InternalServerError("something went wrong", err)
+		return
+	}
+
+	c.Send(ctx).SuccessDataResponse("success", data)
+}
+`, featureLower, module, featureLower, module, featureLower, featureCaps, featureCaps, featureLower, featureCaps, featureLower, featureCaps, featureLower)
+
+	return os.WriteFile(controllerPath, []byte(template), os.ModePerm)
 }
 
 func generateRSAKeyPair(dir string) error {
@@ -305,7 +780,7 @@ RSA_PUBLIC_KEY_PATH="../keys/public.pem"
 	createFile(filepath.Join(dir, ".test.env"), testEnv)
 }
 
-func generateGoMod(dir, module string) {
+func generateGoMod(module, dir string) {
 	goMod := `module %s
 
 go 1.22.4
