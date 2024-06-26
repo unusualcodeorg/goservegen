@@ -15,11 +15,49 @@ cd ~/Downloads/goservegen_Darwin_arm64
 # ./goservegen [project directory path] [project module]
 ./goservegen ~/Downloads/example github.com/yourusername/example
 ```
-Note: `./goservegen ~/Downloads/example github.com/yourusername/example` will generate project named `example` located at `~/Downloads` and module `github.com/yourusername/example`
+Note: ***./goservegen ~/Downloads/example github.com/yourusername/example** will generate project named `example` located at `~/Downloads` and module `github.com/yourusername/example`
 
 4. Open the generated project in your IDE/editor of choice
 
 5. Have fun developing your REST API server!
+
+## Generated Project
+```
+.
+├── .extra
+│   └── setup
+│       └── init-mongo.js
+├── api
+│   └── sample
+│       ├── dto
+│       │   └── create_sample.go
+│       ├── model
+│       │   └── sample.go
+│       ├── controller.go
+│       └── service.go
+├── cmd
+│   └── main.go
+├── config
+│   └── env.go
+├── keys
+│   ├── private.pem
+│   └── public.pem
+├── startup
+│   ├── indexes.go
+│   ├── module.go
+│   ├── server.go
+│   └── testserver.go
+├── utils
+│   └── convertor.go
+├── .env
+├── .test.env
+├── .gitignore
+├── .dockerignore
+├── Dockerfile
+├── docker-compose.yml
+├── go.mod
+└── go.sum
+```
 
 ## Working on the project
 You can read about using this framework here [github.com/unusualcodeorg/goserve](https://github.com/unusualcodeorg/goserve)
