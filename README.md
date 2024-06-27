@@ -81,6 +81,9 @@ Response
 ## Working on the project
 You can read about using this framework here [github.com/unusualcodeorg/goserve](https://github.com/unusualcodeorg/goserve)
 
+## Read the Article to understand this project
+[How to Architecture Good Go Backend REST API Services](https://medium.com/@janishar.ali/how-to-architecture-good-go-backend-rest-api-services-14cc4730c05b)
+
 ## Troubleshoot
 Sometimes your operating system will block the binary from execution, you will have to provide permission to run it. 
 
