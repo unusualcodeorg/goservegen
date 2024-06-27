@@ -1,4 +1,6 @@
 # goservegen - Go Backend Architecture Generator using goserve framework
+[![Download](https://img.shields.io/badge/Download-Starter%20Project%20Zip-green.svg)](https://github.com/unusualcodeorg/goservegen/raw/main/project.zip)
+
 Project generator for go backend architecture using goserve framework
 
 Check out goserve framework [github.com/unusualcodeorg/goserve](https://github.com/unusualcodeorg/goserve)
