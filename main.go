@@ -963,7 +963,7 @@ require (
 	github.com/go-playground/validator/v10 v10.22.0
 	github.com/jinzhu/copier v0.4.0
 	github.com/spf13/viper v1.19.0
-	github.com/unusualcodeorg/goserve v1.0.0
+	github.com/unusualcodeorg/goserve v1.1.0
 	go.mongodb.org/mongo-driver v1.15.1
 )
 
@@ -1034,7 +1034,7 @@ require (
 	github.com/go-playground/validator/v10 v10.22.0
 	github.com/jinzhu/copier v0.4.0
 	github.com/spf13/viper v1.19.0
-	github.com/unusualcodeorg/goserve v1.0.0
+	github.com/unusualcodeorg/goserve v1.1.0
 	go.mongodb.org/mongo-driver v1.15.1
 )
 
