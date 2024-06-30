@@ -328,7 +328,7 @@ import (
 type Shutdown = func()
 
 func Server() {
-	env := config.NewEnv(".env")
+	env := config.NewEnv(".env", true)
 	router, _, shutdown := create(env)
 	defer shutdown()
 	router.Start(env.ServerHost, env.ServerPort)
@@ -393,7 +393,7 @@ import (
 type Teardown = func()
 
 func TestServer() (network.Router, Module, Teardown) {
-	env := config.NewEnv("../.test.env")
+	env := config.NewEnv("../.test.env", false)
 	router, module, shutdown := create(env)
 	ts := httptest.NewServer(router.GetEngine())
 	teardown := func() {
@@ -781,9 +781,13 @@ type Env struct {
 	TokenAudience           string ` + "`" + `mapstructure:"TOKEN_AUDIENCE"` + "`" + `
 }
 
-func NewEnv(filename string) *Env {
+func NewEnv(filename string, override bool) *Env {
 	env := Env{}
 	viper.SetConfigFile(filename)
+
+	if override {
+		viper.AutomaticEnv()
+	}
 
 	err := viper.ReadInConfig()
 	if err != nil {
