@@ -91,7 +91,7 @@ seed("test-db", "test-db-user", "changeit");
 
 func generateDocker(dir string) {
 	base := filepath.Base(dir)
-	docker := fmt.Sprintf(`FROM golang:1.22.4
+	docker := fmt.Sprintf(`FROM golang:1.22.5-alpine
 
 RUN adduser --disabled-password --gecos '' gouser
 
@@ -129,7 +129,7 @@ CMD ["./build/server"]
       - redis
 
   mongo:
-    image: mongo:7.0.9
+    image: mongo:7.0.12
     container_name: mongo
     restart: unless-stopped
     env_file: .env
@@ -145,7 +145,7 @@ CMD ["./build/server"]
       - dbdata:/data/db
 
   redis:
-    image: redis:7.2.3
+    image: redis:7.2.5
     container_name: redis
     restart: unless-stopped
     env_file: .env
@@ -956,14 +956,14 @@ RSA_PUBLIC_KEY_PATH="../keys/public.pem"
 func generateGoMod(module, dir string) {
 	goMod := `module %s
 
-go 1.22.4
+go 1.22.5
 
 require (
 	github.com/gin-gonic/gin v1.10.0
 	github.com/go-playground/validator/v10 v10.22.0
 	github.com/jinzhu/copier v0.4.0
 	github.com/spf13/viper v1.19.0
-	github.com/unusualcodeorg/goserve v1.1.0
+	github.com/unusualcodeorg/goserve v1.1.9
 	go.mongodb.org/mongo-driver v1.15.1
 )
 
@@ -1027,14 +1027,14 @@ require (
 
 	goSum := `module %s
 
-go 1.22.4
+go 1.22.5
 
 require (
 	github.com/gin-gonic/gin v1.10.0
 	github.com/go-playground/validator/v10 v10.22.0
 	github.com/jinzhu/copier v0.4.0
 	github.com/spf13/viper v1.19.0
-	github.com/unusualcodeorg/goserve v1.1.0
+	github.com/unusualcodeorg/goserve v1.1.9
 	go.mongodb.org/mongo-driver v1.15.1
 )
 
